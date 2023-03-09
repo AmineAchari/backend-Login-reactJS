@@ -1,3 +1,109 @@
+const bcrypt = require("bcrypt");
 class Router {
-  constructor() {}
+  constructor(app, db) {
+    this.login(app, db);
+    this.logout(app, db);
+    this.isloggedin(app, db);
+  }
+  login(app, db) {
+    app.post("/login", (req, res) => {
+      let username = req.body.username;
+      let password = req.body.password;
+
+      username = username.toLowerCase();
+      if (username.length > 5 || password.length > 5) {
+        res.json({
+          success: false,
+          msg: "An error occured, please try again 3",
+        });
+      }
+      let cols = { username };
+      db.query(
+        "SELECT * FROM users WHERE username = ? LIMIT 1 ",
+        cols,
+        (err, data, fields) => {
+          if (err) {
+            res.json({
+              success: false,
+              msg: "An error occured, please try again 1",
+            });
+            return;
+          }
+
+          //found 1 user with username
+          if (data && data.length === 1) {
+            bcrypt.compare(
+              password,
+              data[0].password,
+              (bcryptErr, verified) => {
+                if (verified) {
+                  req.session.userID = data[0].id;
+                  res.json({
+                    success: true,
+                    username: data[0].username,
+                  });
+                  return;
+                } else {
+                  res.json({
+                    success: false,
+                    msg: "Invalid password",
+                  });
+                }
+              }
+            );
+          }
+           else {
+            res.json({
+              success: false,
+              msg: "User not found, please try again 2",
+            });
+          }
+        }
+      );
+    });
+  }
+  logout(app, db) {
+    app.post("/logout", (req, res) => {
+      if (req.session.userID) {
+        req.session.destroy();
+        res.json({
+          success: true,
+        });
+        return true;
+      } else {
+        res.json({
+          success: false,
+        });
+        return false;
+      }
+    });
+  }
+  isloggedin(app, db) {
+    app.post("/isLoggedIn", (req, res) => {
+      if (req.session.userID) {
+        let cols = [req.session.userID];
+        db.query(
+          "SELECT * FROM users WHERE id = ? LIMIT 1 ",cols,
+          (err, data, fields) => {
+            if (data && data.length === 1) {
+              res.json({
+                success: true,
+                username: data[0].username
+              });
+              return true;
+            } else {
+              res.json({
+                success: false
+              });
+            }
+          });
+      } else {
+        res.json({
+          success: false
+        })
+            }
+    });
+  }
 }
+
+module.exports = Router;
